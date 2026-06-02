@@ -11,6 +11,7 @@ Unofficial CLI for Pollination AI with file system access, project context aware
 - **File System Access** - Read, search, and explore project files directly from the CLI
 - **Conversation History** - Save and resume conversation threads
 - **Rich Output** - Syntax highlighting, markdown rendering, and colored diffs
+- **Upgrade Roadmap** - See `ROADMAP.md` for the Pollix plan toward multimodal, media, embeddings, and safe tool workflows
 
 ## Installation
 
@@ -75,7 +76,9 @@ pollix init --local
 
 | Variable | Description |
 |----------|-------------|
-| `POLLINATION_API_KEY` | Your Pollination API key |
+| `POLLINATIONS_KEY` | Your Pollinations API key (preferred) |
+| `POLLINATION_API_KEY` | Backward-compatible API key alias |
+| `POLLIX_API_KEY` | Pollix-specific API key alias |
 | `POLLIX_DEFAULT_MODEL` | Default model (default: openai) |
 | `POLLIX_CONTEXT_MODE` | Context mode: minimal, auto, full, files |
 | `POLLIX_TEMPERATURE` | Sampling temperature (0.0 - 1.0) |
@@ -99,7 +102,10 @@ pollix chat "Review my code" --context-mode full
 pollix chat "Quick question" --context-mode minimal
 
 # Custom model and parameters
-pollix chat "Complex task" -m claude --temperature 0.2
+pollix chat "Complex task" -m claude --temperature 0.2 --top-p 0.9
+
+# Request JSON output
+pollix chat "Return a JSON object with one greeting field" --json --no-stream
 
 # Interactive mode
 pollix chat
@@ -124,6 +130,11 @@ pollix chat "Continue" --load project-plan
 - `--load`: Load previous conversation
 - `--temperature`: Sampling temperature (0.0 - 1.0)
 - `--max-tokens`: Maximum response tokens
+- `--top-p`: Nucleus sampling cutoff
+- `--frequency-penalty`: Penalize frequently repeated tokens
+- `--presence-penalty`: Penalize tokens already present
+- `--seed`: Best-effort deterministic seed, if supported by the selected model
+- `--json`: Request a JSON object response using OpenAI-compatible `response_format`
 
 **Interactive Commands:**
 - `/quit`, `/q` - Exit
@@ -138,6 +149,9 @@ pollix chat "Continue" --load project-plan
 ```bash
 # Show bundled model identifiers and the live discovery endpoint
 pollix models
+
+# Fetch the current model list from Pollinations
+pollix models --live
 
 # Use any model with chat/review/edit
 pollix chat "Hello" -m gemma

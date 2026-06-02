@@ -116,6 +116,26 @@ def chat(
         None, "--max-tokens",
         help="Maximum response tokens.",
     ),
+    top_p: Optional[float] = typer.Option(
+        None, "--top-p",
+        help="Nucleus sampling cutoff (0.0 - 1.0).",
+    ),
+    frequency_penalty: Optional[float] = typer.Option(
+        None, "--frequency-penalty",
+        help="Penalty for frequently repeated tokens.",
+    ),
+    presence_penalty: Optional[float] = typer.Option(
+        None, "--presence-penalty",
+        help="Penalty for tokens already present in the conversation.",
+    ),
+    seed: Optional[int] = typer.Option(
+        None, "--seed",
+        help="Best-effort deterministic seed, if supported by the selected model.",
+    ),
+    json_output: bool = typer.Option(
+        False, "--json",
+        help="Request a JSON object response using OpenAI-compatible response_format.",
+    ),
     api_key: Optional[str] = typer.Option(
         None, "--api-key",
         help="Pollination API key.",
@@ -150,6 +170,11 @@ def chat(
         load=load,
         temperature=temperature,
         max_tokens=max_tokens,
+        top_p=top_p,
+        frequency_penalty=frequency_penalty,
+        presence_penalty=presence_penalty,
+        seed=seed,
+        json_output=json_output,
         api_key=api_key,
         verbose=verbose,
         debug=debug,
@@ -310,16 +335,34 @@ def edit(
 
 
 @app.command("models")
-def models() -> None:
-    """List bundled Pollinations model identifiers.
+def models(
+    live: bool = typer.Option(
+        False, "--live",
+        help="Fetch the live model list from Pollinations instead of the bundled fallback list.",
+    ),
+    api_key: Optional[str] = typer.Option(
+        None, "--api-key",
+        help="Pollinations API key for authenticated model discovery, if needed.",
+    ),
+) -> None:
+    """List Pollinations model identifiers.
 
-    Pollinations can add or remove models over time. For the live list, check
-    the model discovery endpoint shown below.
+    Pollinations can add or remove models over time. Use --live to query the
+    public model discovery endpoint.
     """
     rich_print(f"[bold cyan]Default model:[/bold cyan] {DEFAULT_MODEL}")
     rich_print(f"[bold cyan]Live discovery endpoint:[/bold cyan] {MODELS_ENDPOINT}")
-    rich_print("[bold cyan]Bundled known models:[/bold cyan]")
-    for model_name in AVAILABLE_MODELS:
+
+    if live:
+        from pollix.api.client import PollinationClient
+
+        model_names = PollinationClient(api_key=api_key).list_models()
+        rich_print("[bold cyan]Live models:[/bold cyan]")
+    else:
+        model_names = AVAILABLE_MODELS
+        rich_print("[bold cyan]Bundled known models:[/bold cyan]")
+
+    for model_name in model_names:
         marker = " [green](default)[/green]" if model_name == DEFAULT_MODEL else ""
         rich_print(f"  - {model_name}{marker}")
 
