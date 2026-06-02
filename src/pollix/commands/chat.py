@@ -127,6 +127,26 @@ def chat_command(
         None, "--max-tokens",
         help="Maximum response tokens.",
     ),
+    top_p: Optional[float] = typer.Option(
+        None, "--top-p",
+        help="Nucleus sampling cutoff (0.0 - 1.0).",
+    ),
+    frequency_penalty: Optional[float] = typer.Option(
+        None, "--frequency-penalty",
+        help="Penalty for frequently repeated tokens.",
+    ),
+    presence_penalty: Optional[float] = typer.Option(
+        None, "--presence-penalty",
+        help="Penalty for tokens already present in the conversation.",
+    ),
+    seed: Optional[int] = typer.Option(
+        None, "--seed",
+        help="Best-effort deterministic seed, if supported by the selected model.",
+    ),
+    json_output: bool = typer.Option(
+        False, "--json",
+        help="Request a JSON object response using OpenAI-compatible response_format.",
+    ),
     api_key: Optional[str] = typer.Option(
         None, "--api-key",
         help="Pollination API key.",
@@ -173,7 +193,7 @@ def chat_command(
     # Check API key
     if not config.api_key:
         render.print_error(
-            "No API key configured. Set POLLINATION_API_KEY environment variable "
+            "No API key configured. Set POLLINATIONS_KEY or POLLINATION_API_KEY environment variable "
             "or run 'pollix init --global' to configure."
         )
         raise typer.Exit(1)
@@ -242,6 +262,8 @@ def chat_command(
         context_prompt = context.to_prompt()
         full_message = f"{context_prompt}\n\n---\n\n{full_message}"
 
+    response_format = {"type": "json_object"} if json_output else None
+
     # Send request
     try:
         client = PollinationClient(
@@ -262,6 +284,11 @@ def chat_command(
                     conversation_history=conversation_history if load else None,
                     temperature=config.temperature,
                     max_tokens=config.max_tokens,
+                    top_p=top_p,
+                    frequency_penalty=frequency_penalty,
+                    presence_penalty=presence_penalty,
+                    seed=seed,
+                    response_format=response_format,
                 )
 
             # Stream to console
@@ -281,6 +308,11 @@ def chat_command(
                     conversation_history=conversation_history if load else None,
                     temperature=config.temperature,
                     max_tokens=config.max_tokens,
+                    top_p=top_p,
+                    frequency_penalty=frequency_penalty,
+                    presence_penalty=presence_penalty,
+                    seed=seed,
+                    response_format=response_format,
                 )
                 response_text = response.content
 
