@@ -7,6 +7,7 @@ from typing import Optional
 
 import typer
 
+from pollix.api.client import AVAILABLE_MODELS, DEFAULT_MODEL, RECOMMENDED_MODELS
 from pollix.utils.config import Config, ConfigManager
 from pollix.utils.render import Render
 
@@ -100,18 +101,24 @@ def init_command(
                 )
 
             # Model
-            models = ["gemma-4", "gemma-4-2b", "gemma-4-4b", "gemma-4-9b", "gemma-4-27b"]
+            models = list(AVAILABLE_MODELS)
+            recommended = set(RECOMMENDED_MODELS)
             if model:
                 selected_model = model
             else:
                 render.print()
                 render.print_info("Available models:")
                 for i, m in enumerate(models, 1):
-                    marker = " (recommended)" if m == "gemma-4" else ""
+                    if m == DEFAULT_MODEL:
+                        marker = " (default, recommended)"
+                    elif m in recommended:
+                        marker = " (recommended)"
+                    else:
+                        marker = ""
                     render.print(f"  {i}. {m}{marker}")
                 render.print()
                 model_choice = render.prompt(
-                    "Select default model", default="gemma-4",
+                    "Select default model", default=DEFAULT_MODEL,
                 )
                 # Allow selection by number or name
                 try:
@@ -161,7 +168,7 @@ def init_command(
 
             new_config = Config(
                 api_key=api_key,
-                default_model=model or "gemma-4",
+                default_model=model or DEFAULT_MODEL,
                 temperature=temperature if temperature is not None else 0.7,
             )
 

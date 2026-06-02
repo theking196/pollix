@@ -21,7 +21,7 @@ except ImportError:
 # Default configuration values
 DEFAULT_CONFIG = {
     "api_key": "",
-    "default_model": "gemma-4",
+    "default_model": "openai",
     "default_context_mode": "auto",
     "max_tokens": 4096,
     "temperature": 0.7,
@@ -76,7 +76,7 @@ class Config:
     """
 
     api_key: str = ""
-    default_model: str = "gemma-4"
+    default_model: str = "openai"
     default_context_mode: str = "auto"
     max_tokens: int = 4096
     temperature: float = 0.7
@@ -149,7 +149,7 @@ class ConfigManager:
         >>> manager = ConfigManager()
         >>> config = manager.load_config()
         >>> print(config.default_model)
-        'gemma-4'
+        'openai'
     """
 
     GLOBAL_CONFIG_DIR = Path.home() / ".pollix"

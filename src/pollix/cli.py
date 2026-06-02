@@ -14,6 +14,7 @@ import typer
 from rich import print as rich_print
 
 from pollix import __version__
+from pollix.api.client import AVAILABLE_MODELS, DEFAULT_MODEL, MODELS_ENDPOINT
 from pollix.commands.chat import chat_command
 from pollix.commands.edit import edit_command
 from pollix.commands.init import init_command
@@ -306,6 +307,21 @@ def edit(
         verbose=verbose,
         debug=debug,
     )
+
+
+@app.command("models")
+def models() -> None:
+    """List bundled Pollinations model identifiers.
+
+    Pollinations can add or remove models over time. For the live list, check
+    the model discovery endpoint shown below.
+    """
+    rich_print(f"[bold cyan]Default model:[/bold cyan] {DEFAULT_MODEL}")
+    rich_print(f"[bold cyan]Live discovery endpoint:[/bold cyan] {MODELS_ENDPOINT}")
+    rich_print("[bold cyan]Bundled known models:[/bold cyan]")
+    for model_name in AVAILABLE_MODELS:
+        marker = " [green](default)[/green]" if model_name == DEFAULT_MODEL else ""
+        rich_print(f"  - {model_name}{marker}")
 
 
 @app.command("init")

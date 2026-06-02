@@ -41,6 +41,9 @@ pollix chat "Explain this codebase"
 # Review code
 pollix review src/ --type security
 
+# List bundled Pollinations model IDs
+pollix models
+
 # Edit a file
 pollix edit config.yaml -i "add a redis section with port 6379"
 ```
@@ -62,7 +65,7 @@ Pollix uses a hierarchical configuration system:
 pollix init --global
 
 # Quick setup with flags
-pollix init --global --api-key YOUR_KEY --model gemma-4
+pollix init --global --api-key YOUR_KEY --model openai
 
 # Project-specific local config
 pollix init --local
@@ -73,7 +76,7 @@ pollix init --local
 | Variable | Description |
 |----------|-------------|
 | `POLLINATION_API_KEY` | Your Pollination API key |
-| `POLLIX_DEFAULT_MODEL` | Default model (default: gemma-4) |
+| `POLLIX_DEFAULT_MODEL` | Default model (default: openai) |
 | `POLLIX_CONTEXT_MODE` | Context mode: minimal, auto, full, files |
 | `POLLIX_TEMPERATURE` | Sampling temperature (0.0 - 1.0) |
 | `POLLIX_MAX_TOKENS` | Maximum tokens per response |
@@ -96,7 +99,7 @@ pollix chat "Review my code" --context-mode full
 pollix chat "Quick question" --context-mode minimal
 
 # Custom model and parameters
-pollix chat "Complex task" -m gemma-4-27b --temperature 0.2
+pollix chat "Complex task" -m claude --temperature 0.2
 
 # Interactive mode
 pollix chat
@@ -111,7 +114,7 @@ pollix chat "Continue" --load project-plan
 ```
 
 **Options:**
-- `--model, -m`: Model name (gemma-4, gemma-4-2b, gemma-4-4b, gemma-4-9b, gemma-4-27b)
+- `--model, -m`: Model name (openai, openai-fast, deepseek, gemini, claude)
 - `--file, -f`: Include specific files (repeatable)
 - `--context-mode`: minimal, auto, full, files
 - `--stream/--no-stream`: Enable/disable streaming
@@ -129,6 +132,19 @@ pollix chat "Continue" --load project-plan
 - `/save <name>` - Save conversation
 - `/load <name>` - Load conversation
 - `/help` - Show help
+
+### `models` - List Models
+
+```bash
+# Show bundled model identifiers and the live discovery endpoint
+pollix models
+
+# Use any model with chat/review/edit
+pollix chat "Hello" -m gemma
+pollix chat "Search this" -m gemini-search
+```
+
+The default model is `openai`. Common alternatives include `openai-fast`, `gemma`, `claude`, `gemini`, `deepseek`, `kimi`, and `qwen-coder`. Pollinations may add models over time, so the CLI allows custom model IDs instead of blocking unknown future models.
 
 ### `review` - Code Review
 
