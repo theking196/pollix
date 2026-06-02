@@ -17,8 +17,10 @@ from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
 import httpx
 
 # API Configuration
-API_BASE_URL = "https://api.pollination.ai"
-PREDICTIONS_ENDPOINT = f"{API_BASE_URL}/predictions"
+API_BASE_URL = "https://gen.pollinations.ai"
+CHAT_COMPLETIONS_ENDPOINT = f"{API_BASE_URL}/v1/chat/completions"
+MODELS_ENDPOINT = f"{API_BASE_URL}/v1/models"
+API_KEY_ENV_VARS = ("POLLINATIONS_KEY", "POLLINATION_API_KEY", "POLLIX_API_KEY")
 
 # Timeout configuration (connect, read, write, pool)
 DEFAULT_TIMEOUT = httpx.Timeout(connect=30.0, read=120.0, write=30.0, pool=5.0)
@@ -29,15 +31,75 @@ MIN_BACKOFF = 1.0
 MAX_BACKOFF = 60.0
 BACKOFF_MULTIPLIER = 2.0
 
-# Available models
+# Known Pollinations text/audio model identifiers. The API can add models at any
+# time, so this list is used for defaults, prompts, and helpful error messages;
+# callers may still pass a custom model name.
 AVAILABLE_MODELS = [
-    "gemma-4",
-    "gemma-4-2b",
-    "gemma-4-4b",
-    "gemma-4-9b",
-    "gemma-4-27b",
+    "openai",
+    "openai-fast",
+    "openai-large",
+    "gpt-5.4-mini",
+    "gpt-5.5",
+    "qwen-coder",
+    "mistral",
+    "mistral-4",
+    "openai-audio",
+    "openai-audio-large",
+    "gemini",
+    "gemini-3.5-flash",
+    "gemini-flash-lite-3.1",
+    "gemini-fast",
+    "deepseek",
+    "gemma",
+    "deepseek-pro",
+    "grok",
+    "grok-large",
+    "grok-4.3",
+    "gemini-search",
+    "gemini-search-fast",
+    "gemini-search-large",
+    "midijourney",
+    "midijourney-large",
+    "claude-fast",
+    "claude",
+    "claude-large",
+    "claude-opus-4.7",
+    "claude-opus-4.8",
+    "perplexity-fast",
+    "perplexity-deep",
+    "perplexity",
+    "perplexity-reasoning",
+    "kimi",
+    "kimi-k2.6",
+    "gemini-large",
+    "nova-fast",
+    "nova",
+    "glm",
+    "llama",
+    "llama-maverick",
+    "llama-scout",
+    "minimax",
+    "mistral-large",
+    "polly",
+    "qwen-coder-large",
+    "qwen-large",
+    "qwen-vision",
+    "qwen-vision-pro",
+    "step-flash",
+    "step-3.5-flash",
+    "qwen-safety",
 ]
-DEFAULT_MODEL = "gemma-4"
+DEFAULT_MODEL = "openai"
+RECOMMENDED_MODELS = [
+    "openai",
+    "openai-fast",
+    "claude",
+    "gemini",
+    "deepseek",
+    "gemma",
+    "kimi",
+    "qwen-coder",
+]
 
 
 class APIError(Exception):
@@ -61,7 +123,11 @@ class APIError(Exception):
 class AuthenticationError(APIError):
     """Raised when API authentication fails (401)."""
 
-    def __init__(self, message: str = "Authentication failed. Check your POLLINATION_API_KEY.", response_body: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        message: str = "Authentication failed. Check POLLINATIONS_KEY or POLLINATION_API_KEY.",
+        response_body: Optional[str] = None,
+    ) -> None:
         super().__init__(message, status_code=401, response_body=response_body)
 
 
@@ -100,14 +166,14 @@ class Message:
     """A single message in the conversation."""
 
     role: MessageRole
-    content: str
+    content: Union[str, List[Dict[str, Any]]]
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert message to API-compatible dictionary."""
         return {"role": self.role.value, "content": self.content}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, str]) -> "Message":
+    def from_dict(cls, data: Dict[str, Any]) -> "Message":
         """Create a Message from a dictionary."""
         return cls(
             role=MessageRole(data.get("role", "user")),
@@ -115,7 +181,7 @@ class Message:
         )
 
     @classmethod
-    def user(cls, content: str) -> "Message":
+    def user(cls, content: Union[str, List[Dict[str, Any]]]) -> "Message":
         """Create a user message."""
         return cls(role=MessageRole.USER, content=content)
 
@@ -141,25 +207,33 @@ class ChatRequest:
     max_tokens: int = 4096
     top_p: Optional[float] = None
     top_k: Optional[int] = None
+    frequency_penalty: Optional[float] = None
+    presence_penalty: Optional[float] = None
+    seed: Optional[int] = None
+    response_format: Optional[Dict[str, str]] = None
 
     def to_api_payload(self) -> Dict[str, Any]:
         """Convert to the API request format."""
         payload: Dict[str, Any] = {
-            "inputs": {
-                "messages": [msg.to_dict() for msg in self.messages],
-                "model": self.model,
-            }
+            "model": self.model,
+            "messages": [msg.to_dict() for msg in self.messages],
+            "stream": self.stream,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
         }
 
-        # Add optional parameters if they differ from defaults
-        if self.temperature != 0.7:
-            payload["inputs"]["temperature"] = self.temperature
-        if self.max_tokens != 4096:
-            payload["inputs"]["max_tokens"] = self.max_tokens
         if self.top_p is not None:
-            payload["inputs"]["top_p"] = self.top_p
+            payload["top_p"] = self.top_p
         if self.top_k is not None:
-            payload["inputs"]["top_k"] = self.top_k
+            payload["top_k"] = self.top_k
+        if self.frequency_penalty is not None:
+            payload["frequency_penalty"] = self.frequency_penalty
+        if self.presence_penalty is not None:
+            payload["presence_penalty"] = self.presence_penalty
+        if self.seed is not None:
+            payload["seed"] = self.seed
+        if self.response_format is not None:
+            payload["response_format"] = self.response_format
 
         return payload
 
@@ -203,7 +277,7 @@ class PollinationClient:
 
         Args:
             api_key: Pollination API key. If not provided, reads from
-                     POLLINATION_API_KEY environment variable.
+                     POLLINATIONS_KEY or POLLINATION_API_KEY environment variable.
             base_url: Base URL for the API.
             timeout: Request timeout configuration.
             max_retries: Maximum number of retry attempts.
@@ -211,33 +285,41 @@ class PollinationClient:
         Raises:
             AuthenticationError: If no API key is provided or found in environment.
         """
-        self.api_key = api_key or os.environ.get("POLLINATION_API_KEY")
-        if not self.api_key:
-            raise AuthenticationError(
-                "No API key provided. Set POLLINATION_API_KEY environment variable "
-                "or pass api_key parameter."
-            )
+        self.api_key = api_key or self._api_key_from_env()
 
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout or DEFAULT_TIMEOUT
         self.max_retries = max_retries
 
-        # Initialize HTTP client with connection pooling
+        # Initialize HTTP client with connection pooling. Keep HTTP/2 disabled so
+        # the CLI works with the normal httpx install and does not require the
+        # optional h2 package.
         self._client = httpx.Client(
             timeout=self.timeout,
             headers=self._default_headers(),
-            http2=True,
+            http2=False,
             limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
         )
 
+    @staticmethod
+    def _api_key_from_env() -> Optional[str]:
+        """Return the first supported Pollinations API key from the environment."""
+        for env_var in API_KEY_ENV_VARS:
+            value = os.environ.get(env_var)
+            if value:
+                return value
+        return None
+
     def _default_headers(self) -> Dict[str, str]:
         """Generate default HTTP headers for all requests."""
-        return {
-            "Authorization": f"Bearer {self.api_key}",
+        headers = {
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream",
             "User-Agent": f"pollix/0.1.0",
         }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
 
     def _calculate_backoff(self, attempt: int) -> float:
         """Calculate exponential backoff delay.
@@ -310,7 +392,7 @@ class PollinationClient:
         for attempt in range(self.max_retries):
             try:
                 response = self._client.post(
-                    PREDICTIONS_ENDPOINT,
+                    CHAT_COMPLETIONS_ENDPOINT,
                     json=payload,
                     headers={"Accept": "text/event-stream" if stream else "application/json"},
                     timeout=self.timeout,
@@ -319,12 +401,25 @@ class PollinationClient:
                 if response.status_code == 200:
                     return response
 
-                # Handle retryable errors
+                # Handle retryable errors without raising before the next attempt.
                 if response.status_code in (429, 500, 502, 503, 504):
-                    last_error = self._handle_error_response(response)
-                    if isinstance(last_error, RateLimitError) and last_error.retry_after:
-                        delay = last_error.retry_after
+                    body = response.text[:500]
+                    if response.status_code == 429:
+                        retry_after = None
+                        try:
+                            retry_after = int(response.headers.get("retry-after", 0))
+                        except (ValueError, TypeError):
+                            pass
+                        last_error = RateLimitError(
+                            retry_after=retry_after,
+                            response_body=body,
+                        )
+                        delay = retry_after or self._calculate_backoff(attempt)
                     else:
+                        last_error = ServerError(
+                            status_code=response.status_code,
+                            response_body=body,
+                        )
                         delay = self._calculate_backoff(attempt)
                     time.sleep(delay)
                     continue
@@ -358,6 +453,11 @@ class PollinationClient:
         conversation_history: Optional[List[Message]] = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        top_p: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        response_format: Optional[Dict[str, str]] = None,
     ) -> ChatResponse:
         """Send a chat message and get a complete response.
 
@@ -368,6 +468,11 @@ class PollinationClient:
             conversation_history: Previous messages in the conversation.
             temperature: Sampling temperature (0.0 - 1.0).
             max_tokens: Maximum tokens in the response.
+            top_p: Nucleus sampling cutoff.
+            frequency_penalty: Penalize repeated tokens by frequency.
+            presence_penalty: Penalize tokens already present.
+            seed: Best-effort deterministic seed, if supported by the model.
+            response_format: OpenAI-compatible response format object.
 
         Returns:
             ChatResponse containing the assistant's reply.
@@ -391,6 +496,11 @@ class PollinationClient:
             stream=False,
             temperature=temperature,
             max_tokens=max_tokens,
+            top_p=top_p,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            seed=seed,
+            response_format=response_format,
         )
 
         payload = request.to_api_payload()
@@ -418,6 +528,11 @@ class PollinationClient:
         conversation_history: Optional[List[Message]] = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        top_p: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        response_format: Optional[Dict[str, str]] = None,
     ) -> Iterator[str]:
         """Send a chat message and stream the response tokens.
 
@@ -428,6 +543,11 @@ class PollinationClient:
             conversation_history: Previous messages in the conversation.
             temperature: Sampling temperature (0.0 - 1.0).
             max_tokens: Maximum tokens in the response.
+            top_p: Nucleus sampling cutoff.
+            frequency_penalty: Penalize repeated tokens by frequency.
+            presence_penalty: Penalize tokens already present.
+            seed: Best-effort deterministic seed, if supported by the model.
+            response_format: OpenAI-compatible response format object.
 
         Yields:
             Response tokens as they arrive from the API.
@@ -451,6 +571,11 @@ class PollinationClient:
             stream=True,
             temperature=temperature,
             max_tokens=max_tokens,
+            top_p=top_p,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            seed=seed,
+            response_format=response_format,
         )
 
         payload = request.to_api_payload()
@@ -591,18 +716,44 @@ class PollinationClient:
         Raises:
             ValidationError: If the model is not recognized.
         """
-        # Allow any model that starts with known patterns
-        valid_prefixes = ["gemma-4"]
-        if any(model.startswith(prefix) for prefix in valid_prefixes):
-            return model
+        if not model or not model.strip():
+            raise ValidationError("Model name cannot be empty.")
 
-        # Check exact matches
-        if model in AVAILABLE_MODELS:
-            return model
+        return model.strip()
 
-        raise ValidationError(
-            f"Unknown model: '{model}'. Available models: {', '.join(AVAILABLE_MODELS)}"
-        )
+    def list_models(self) -> List[str]:
+        """Fetch available model names from the Pollinations model endpoint.
+
+        Returns:
+            Sorted model names. Falls back to the bundled known model list if the
+            discovery endpoint is unavailable or returns an unexpected shape.
+        """
+        try:
+            response = self._client.get(MODELS_ENDPOINT, timeout=self.timeout)
+            if response.status_code != 200:
+                return list(AVAILABLE_MODELS)
+
+            data = response.json()
+            if isinstance(data, dict) and isinstance(data.get("data"), list):
+                return sorted(
+                    str(item["id"])
+                    for item in data["data"]
+                    if isinstance(item, dict) and item.get("id")
+                ) or list(AVAILABLE_MODELS)
+            if isinstance(data, list):
+                names = []
+                for item in data:
+                    if isinstance(item, dict):
+                        name = item.get("id") or item.get("name")
+                        if name:
+                            names.append(str(name))
+                    elif isinstance(item, str):
+                        names.append(item)
+                return sorted(set(names)) or list(AVAILABLE_MODELS)
+        except Exception:
+            return list(AVAILABLE_MODELS)
+
+        return list(AVAILABLE_MODELS)
 
     def close(self) -> None:
         """Close the HTTP client and release resources."""

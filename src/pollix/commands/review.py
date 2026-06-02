@@ -337,7 +337,7 @@ def review_command(
     render = Render(theme=config.theme, verbose=config.verbose, debug=config.debug)
 
     if not config.api_key:
-        render.print_error("No API key configured. Set POLLINATION_API_KEY or run 'pollix init --global'")
+        render.print_error("No API key configured. Set POLLINATIONS_KEY or run 'pollix init --global'")
         raise typer.Exit(1)
 
     # Handle git diff mode
